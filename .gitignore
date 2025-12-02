@@ -1,3 +1,14 @@
 __pycache__
 
 /.vscode/*
+
+# Generated StarDict files
+ecdict.idx
+ecdict.dict
+ecdict.ifo
+
+# Generated MDict source
+ecdict.txt
+
+# Packaged dictionary
+ecdict.zip
