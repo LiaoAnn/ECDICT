@@ -1,22 +1,23 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 # vim: set ts=4 sw=4 tw=0 et :
-#======================================================================
+# ======================================================================
 #
-# stardict.py - 
+# stardict.py -
 #
 # Created by skywind on 2011/05/13
 # Last Modified: 2019/11/09 23:47
 #
-#======================================================================
+# ======================================================================
 from __future__ import print_function
+
+import codecs
+import csv
+import io
+import os
+import sqlite3
 import sys
 import time
-import os
-import io
-import csv
-import sqlite3
-import codecs
 
 try:
     import json
@@ -26,28 +27,28 @@ except:
 MySQLdb = None
 
 
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # python3 compatible
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 if sys.version_info[0] >= 3:
     unicode = str
     long = int
     xrange = range
 
 
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # word strip
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 def stripword(word):
-    return (''.join([ n for n in word if n.isalnum() ])).lower()
+    return (''.join([n for n in word if n.isalnum()])).lower()
 
 
-#----------------------------------------------------------------------
-# StarDict 
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# StarDict
+# ----------------------------------------------------------------------
 class StarDict (object):
 
-    def __init__ (self, filename, verbose = False):
+    def __init__(self, filename, verbose=False):
         self.__dbname = filename
         if filename != ':memory:':
             os.path.abspath(filename)
@@ -56,7 +57,7 @@ class StarDict (object):
         self.__open()
 
     # 初始化并创建必要的表格和索引
-    def __open (self):
+    def __open(self):
         sql = '''
         CREATE TABLE IF NOT EXISTS "stardict" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL UNIQUE,
@@ -81,27 +82,28 @@ class StarDict (object):
         CREATE INDEX IF NOT EXISTS "sd_1" ON stardict (word collate nocase);
         '''
 
-        self.__conn = sqlite3.connect(self.__dbname, isolation_level = "IMMEDIATE")
+        self.__conn = sqlite3.connect(
+            self.__dbname, isolation_level="IMMEDIATE")
         self.__conn.isolation_level = "IMMEDIATE"
 
-        sql = '\n'.join([ n.strip('\t') for n in sql.split('\n') ])
+        sql = '\n'.join([n.strip('\t') for n in sql.split('\n')])
         sql = sql.strip('\n')
 
         self.__conn.executescript(sql)
         self.__conn.commit()
 
-        fields = ( 'id', 'word', 'sw', 'phonetic', 'definition', 
-            'translation', 'pos', 'collins', 'oxford', 'tag', 'bnc', 'frq', 
-            'exchange', 'detail', 'audio' )
+        fields = ('id', 'word', 'sw', 'phonetic', 'definition',
+                  'translation', 'pos', 'collins', 'oxford', 'tag', 'bnc', 'frq',
+                  'exchange', 'detail', 'audio')
         self.__fields = tuple([(fields[i], i) for i in range(len(fields))])
-        self.__names = { }
+        self.__names = {}
         for k, v in self.__fields:
             self.__names[k] = v
         self.__enable = self.__fields[3:]
         return True
 
     # 数据库记录转化为字典
-    def __record2obj (self, record):
+    def __record2obj(self, record):
         if record is None:
             return None
         word = {}
@@ -117,22 +119,22 @@ class StarDict (object):
         return word
 
     # 关闭数据库
-    def close (self):
+    def close(self):
         if self.__conn:
             self.__conn.close()
         self.__conn = None
-    
-    def __del__ (self):
+
+    def __del__(self):
         self.close()
 
     # 输出日志
-    def out (self, text):
+    def out(self, text):
         if self.__verbose:
             print(text)
         return True
 
     # 查询单词
-    def query (self, key):
+    def query(self, key):
         c = self.__conn.cursor()
         record = None
         if isinstance(key, int) or isinstance(key, long):
@@ -145,7 +147,7 @@ class StarDict (object):
         return self.__record2obj(record)
 
     # 查询单词匹配
-    def match (self, word, limit = 10, strip = False):
+    def match (self, word, limit=10, strip=False):
         c = self.__conn.cursor()
         if not strip:
             sql = 'select id, word from stardict where word >= ? '
@@ -162,7 +164,7 @@ class StarDict (object):
         return result
 
     # 批量查询
-    def query_batch (self, keys):
+    def query_batch(self, keys):
         sql = 'select * from stardict where '
         if keys is None:
             return None
@@ -194,14 +196,14 @@ class StarDict (object):
         return tuple(results)
 
     # 取得单词总数
-    def count (self):
+    def count(self):
         c = self.__conn.cursor()
         c.execute('select count(*) from stardict;')
         record = c.fetchone()
         return record[0]
 
     # 注册新单词
-    def register (self, word, items, commit = True):
+    def register(self, word, items, commit=True):
         sql = 'INSERT INTO stardict(word, sw) VALUES(?, ?);'
         try:
             self.__conn.execute(sql, (word, stripword(word)))
@@ -215,7 +217,7 @@ class StarDict (object):
         return True
 
     # 删除单词
-    def remove (self, key, commit = True):
+    def remove(self, key, commit=True):
         if isinstance(key, int) or isinstance(key, long):
             sql = 'DELETE FROM stardict WHERE id=?;'
         else:
@@ -229,7 +231,7 @@ class StarDict (object):
         return True
 
     # 清空数据库
-    def delete_all (self, reset_id = False):
+    def delete_all(self, reset_id=False):
         sql1 = 'DELETE FROM stardict;'
         sql2 = "UPDATE sqlite_sequence SET seq = 0 WHERE name = 'stardict';"
         try:
@@ -246,7 +248,7 @@ class StarDict (object):
         return True
 
     # 更新单词数据
-    def update (self, key, items, commit = True):
+    def update(self, key, items, commit=True):
         names = []
         values = []
         for name, id in self.__enable:
@@ -255,7 +257,7 @@ class StarDict (object):
                 value = items[name]
                 if name == 'detail':
                     if value is not None:
-                        value = json.dumps(value, ensure_ascii = False)
+                        value = json.dumps(value, ensure_ascii=False)
                 values.append(value)
         if len(names) == 0:
             if commit:
@@ -264,7 +266,7 @@ class StarDict (object):
                 except sqlite3.IntegrityError:
                     return False
             return False
-        sql = 'UPDATE stardict SET ' + ', '.join(['%s=?'%n for n in names])
+        sql = 'UPDATE stardict SET ' + ', '.join(['%s=?' % n for n in names])
         if isinstance(key, str) or isinstance(key, unicode):
             sql += ' WHERE word=?;'
         else:
@@ -278,7 +280,7 @@ class StarDict (object):
         return True
 
     # 浏览词典
-    def __iter__ (self):
+    def __iter__(self):
         c = self.__conn.cursor()
         sql = 'select "id", "word" from "stardict"'
         sql += ' order by "word" collate nocase;'
@@ -286,19 +288,19 @@ class StarDict (object):
         return c.__iter__()
 
     # 取得长度
-    def __len__ (self):
+    def __len__(self):
         return self.count()
 
     # 检测存在
-    def __contains__ (self, key):
+    def __contains__(self, key):
         return self.query(key) is not None
 
     # 查询单词
-    def __getitem__ (self, key):
+    def __getitem__(self, key):
         return self.query(key)
 
     # 提交变更
-    def commit (self):
+    def commit(self):
         try:
             self.__conn.commit()
         except sqlite3.IntegrityError:
@@ -307,14 +309,13 @@ class StarDict (object):
         return True
 
     # 取得所有单词
-    def dumps (self):
-        return [ n for _, n in self.__iter__() ]
+    def dumps(self):
+        return [n for _, n in self.__iter__()]
 
 
-
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # startup MySQLdb
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 def mysql_startup():
     global MySQLdb
     if MySQLdb is not None:
@@ -327,12 +328,12 @@ def mysql_startup():
     return True
 
 
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # DictMysql
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 class DictMySQL (object):
 
-    def __init__ (self, desc, init = False, timeout = 10, verbose = False):
+    def __init__(self, desc, init=False, timeout=10, verbose=False):
         self.__argv = {}
         self.__uri = {}
         if isinstance(desc, dict):
@@ -351,15 +352,15 @@ class DictMySQL (object):
             raise KeyError('not find db name')
         self.__open()
 
-    def __open (self):
+    def __open(self):
         mysql_startup()
         if MySQLdb is None:
             raise ImportError('No module named MySQLdb')
-        fields = [ 'id', 'word', 'sw', 'phonetic', 'definition', 
-            'translation', 'pos', 'collins', 'oxford', 'tag', 'bnc', 'frq', 
-            'exchange', 'detail', 'audio' ]
+        fields = ['id', 'word', 'sw', 'phonetic', 'definition',
+                  'translation', 'pos', 'collins', 'oxford', 'tag', 'bnc', 'frq',
+                  'exchange', 'detail', 'audio']
         self.__fields = tuple([(fields[i], i) for i in range(len(fields))])
-        self.__names = { }
+        self.__names = {}
         for k, v in self.__fields:
             self.__names[k] = v
         self.__enable = self.__fields[3:]
@@ -376,18 +377,18 @@ class DictMySQL (object):
         return True
 
     # 输出日志
-    def out (self, text):
+    def out(self, text):
         if self.__verbose:
             print(text)
         return True
 
     # 初始化数据库与表格
-    def init (self):
+    def init(self):
         database = self.__argv.get('db', 'stardict')
-        self.out('create database: %s'%database)
+        self.out('create database: %s' % database)
         self.__conn.query("SET sql_notes = 0;")
-        self.__conn.query('CREATE DATABASE IF NOT EXISTS %s;'%database)
-        self.__conn.query('USE %s;'%database)
+        self.__conn.query('CREATE DATABASE IF NOT EXISTS %s;' % database)
+        self.__conn.query('USE %s;' % database)
         # self.__conn.query('drop table if exists stardict')
         sql = '''
             CREATE TABLE IF NOT EXISTS `%s`.`stardict` (
@@ -411,8 +412,8 @@ class DictMySQL (object):
             KEY(`oxford`),
             KEY(`tag`)
             )
-            '''%(database)
-        sql = '\n'.join([ n.strip('\t') for n in sql.split('\n') ])
+            ''' % (database)
+        sql = '\n'.join([n.strip('\t') for n in sql.split('\n')])
         sql = sql.strip('\n')
         sql += ' ENGINE=MyISAM DEFAULT CHARSET=utf8;'
         self.__conn.query(sql)
@@ -420,7 +421,7 @@ class DictMySQL (object):
         return True
 
     # 读取 mysql://user:passwd@host:port/database
-    def __url_parse (self, url):
+    def __url_parse(self, url):
         if url[:8] != 'mysql://':
             return None
         url = url[8:]
@@ -451,7 +452,7 @@ class DictMySQL (object):
         return obj
 
     # 数据库记录转化为字典
-    def __record2obj (self, record):
+    def __record2obj(self, record):
         if record is None:
             return None
         word = {}
@@ -467,16 +468,16 @@ class DictMySQL (object):
         return word
 
     # 关闭数据库
-    def close (self):
+    def close(self):
         if self.__conn:
             self.__conn.close()
         self.__conn = None
 
-    def __del__ (self):
+    def __del__(self):
         self.close()
 
     # 查询单词
-    def query (self, key):
+    def query(self, key):
         record = None
         if isinstance(key, int) or isinstance(key, long):
             sql = 'select * from stardict where id = %s;'
@@ -490,7 +491,7 @@ class DictMySQL (object):
         return self.__record2obj(record)
 
     # 查询单词匹配
-    def match (self, word, limit = 10, strip = False):
+    def match (self, word, limit=10, strip=False):
         c = self.__conn.cursor()
         if not strip:
             sql = 'select id, word from stardict where word >= %s '
@@ -507,7 +508,7 @@ class DictMySQL (object):
         return result
 
     # 批量查询
-    def query_batch (self, keys):
+    def query_batch(self, keys):
         sql = 'select * from stardict where '
         if keys is None:
             return None
@@ -539,7 +540,7 @@ class DictMySQL (object):
         return tuple(results)
 
     # 注册新单词
-    def register (self, word, items, commit = True):
+    def register(self, word, items, commit=True):
         sql = 'INSERT INTO stardict(word, sw) VALUES(%s, %s);'
         try:
             with self.__conn as c:
@@ -551,7 +552,7 @@ class DictMySQL (object):
         return True
 
     # 删除单词
-    def remove (self, key, commit = True):
+    def remove(self, key, commit=True):
         if isinstance(key, int) or isinstance(key, long):
             sql = 'DELETE FROM stardict WHERE id=%s;'
         else:
@@ -565,7 +566,7 @@ class DictMySQL (object):
         return True
 
     # 清空数据库
-    def delete_all (self, reset_id = False):
+    def delete_all(self, reset_id=False):
         sql1 = 'DELETE FROM stardict;'
         try:
             with self.__conn as c:
@@ -576,7 +577,7 @@ class DictMySQL (object):
         return True
 
     # 更新单词数据
-    def update (self, key, items, commit = True):
+    def update(self, key, items, commit=True):
         names = []
         values = []
         for name, id in self.__enable:
@@ -585,7 +586,7 @@ class DictMySQL (object):
                 value = items[name]
                 if name == 'detail':
                     if value is not None:
-                        value = json.dumps(value, ensure_ascii = False)
+                        value = json.dumps(value, ensure_ascii=False)
                 values.append(value)
         if len(names) == 0:
             if commit:
@@ -595,7 +596,7 @@ class DictMySQL (object):
                     self.out(str(e))
                     return False
             return False
-        sql = 'UPDATE stardict SET ' + ', '.join(['%s=%%s'%n for n in names])
+        sql = 'UPDATE stardict SET ' + ', '.join(['%s=%%s' % n for n in names])
         if isinstance(key, str) or isinstance(key, unicode):
             sql += ' WHERE word=%s;'
         else:
@@ -609,7 +610,7 @@ class DictMySQL (object):
         return True
 
     # 取得数据量
-    def count (self):
+    def count(self):
         sql = 'SELECT count(*) FROM stardict;'
         try:
             with self.__conn as c:
@@ -622,7 +623,7 @@ class DictMySQL (object):
         return 0
 
     # 提交数据
-    def commit (self):
+    def commit(self):
         try:
             self.__conn.commit()
         except MySQLdb.Error as e:
@@ -631,47 +632,46 @@ class DictMySQL (object):
         return True
 
     # 取得长度
-    def __len__ (self):
+    def __len__(self):
         return self.count()
 
     # 检测存在
-    def __contains__ (self, key):
+    def __contains__(self, key):
         return self.query(key) is not None
 
     # 查询单词
-    def __getitem__ (self, key):
+    def __getitem__(self, key):
         return self.query(key)
 
     # 取得所有单词
-    def dumps (self):
-        return [ n for _, n in self.__iter__() ]
+    def dumps(self):
+        return [n for _, n in self.__iter__()]
 
 
-
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # CSV COLUMNS
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 COLUMN_SIZE = 13
 COLUMN_ID = COLUMN_SIZE
 COLUMN_SD = COLUMN_SIZE + 1
 COLUMN_SW = COLUMN_SIZE + 2
 
 
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # DictCsv
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 class DictCsv (object):
 
-    def __init__ (self, filename, codec = 'utf-8'):
+    def __init__(self, filename, codec='utf-8'):
         self.__csvname = None
         if filename is not None:
             self.__csvname = os.path.abspath(filename)
         self.__codec = codec
-        self.__heads = ( 'word', 'phonetic', 'definition', 
-            'translation', 'pos', 'collins', 'oxford', 'tag', 'bnc', 'frq', 
-            'exchange', 'detail', 'audio' )
+        self.__heads = ('word', 'phonetic', 'definition',
+                        'translation', 'pos', 'collins', 'oxford', 'tag', 'bnc', 'frq',
+                        'exchange', 'detail', 'audio')
         heads = self.__heads
-        self.__fields = tuple([ (heads[i], i) for i in range(len(heads)) ])
+        self.__fields = tuple([(heads[i], i) for i in range(len(heads))])
         self.__names = {}
         for k, v in self.__fields:
             self.__names[k] = v
@@ -686,20 +686,20 @@ class DictCsv (object):
         self.__index = []
         self.__read()
 
-    def reset (self):
+    def reset(self):
         self.__dirty = False
         self.__words = {}
         self.__rows = []
         self.__index = []
         return True
 
-    def encode (self, text):
+    def encode(self, text):
         if text is None:
             return None
         text = text.replace('\\', '\\\\').replace('\n', '\\n')
         return text.replace('\r', '\\r')
 
-    def decode (self, text):
+    def decode(self, text):
         output = []
         i = 0
         if text is None:
@@ -724,7 +724,7 @@ class DictCsv (object):
         return ''.join(output)
 
     # 安全转行整数
-    def readint (self, text):
+    def readint(self, text):
         if text is None:
             return None
         if text == '':
@@ -738,7 +738,7 @@ class DictCsv (object):
         return x
 
     # 读取文件
-    def __read (self):
+    def __read(self):
         self.reset()
         filename = self.__csvname
         if filename is None:
@@ -757,7 +757,7 @@ class DictCsv (object):
             bio.seek(0)
             reader = csv.reader(bio)
         else:
-            reader = csv.reader(open(filename, encoding = codec))
+            reader = csv.reader(open(filename, encoding=codec))
         rows = []
         index = []
         words = {}
@@ -769,7 +769,7 @@ class DictCsv (object):
             if len(row) < 1:
                 continue
             if sys.version_info[0] < 3:
-                row = [ n.decode(codec, 'ignore') for n in row ]
+                row = [n.decode(codec, 'ignore') for n in row]
             if len(row) < COLUMN_SIZE:
                 row.extend([None] * (COLUMN_SIZE - len(row)))
             if len(row) > COLUMN_SIZE:
@@ -783,8 +783,8 @@ class DictCsv (object):
             index.append(row)
         self.__rows = rows
         self.__index = index
-        self.__rows.sort(key = lambda row: row[0].lower())
-        self.__index.sort(key = lambda row: (row[COLUMN_SW], row[0].lower()))
+        self.__rows.sort(key=lambda row: row[0].lower())
+        self.__index.sort(key=lambda row: (row[COLUMN_SW], row[0].lower()))
         for index in xrange(len(self.__rows)):
             row = self.__rows[index]
             row[COLUMN_ID] = index
@@ -796,7 +796,7 @@ class DictCsv (object):
         return True
 
     # 保存文件
-    def save (self, filename = None, codec = 'utf-8'):
+    def save(self, filename=None, codec='utf-8'):
         if filename is None:
             filename = self.__csvname
         if filename is None:
@@ -805,9 +805,9 @@ class DictCsv (object):
             fp = open(filename, 'wb')
             writer = csv.writer(fp)
         else:
-            fp = open(filename, 'w', encoding = codec, newline = '')
+            fp = open(filename, 'w', encoding=codec, newline='')
             writer = csv.writer(fp)
-        writer.writerow(self.__heads)   
+        writer.writerow(self.__heads)
         for row in self.__rows:
             newrow = []
             for n in row:
@@ -822,7 +822,7 @@ class DictCsv (object):
         return True
 
     # 对象解码
-    def __obj_decode (self, row):
+    def __obj_decode(self, row):
         if row is None:
             return None
         obj = {}
@@ -847,8 +847,8 @@ class DictCsv (object):
         return obj
 
     # 对象编码
-    def __obj_encode (self, obj):
-        row = [ None for i in xrange(len(self.__fields) + 3) ]
+    def __obj_encode(self, obj):
+        row = [None for i in xrange(len(self.__fields) + 3)]
         for name, idx in self.__fields:
             value = obj.get(name, None)
             if value is None:
@@ -856,16 +856,16 @@ class DictCsv (object):
             if idx in self.__numbers:
                 value = str(value)
             elif name == 'detail':
-                value = json.dumps(value, ensure_ascii = False)
+                value = json.dumps(value, ensure_ascii=False)
             else:
                 value = self.encode(value)
             row[idx] = value
         return row
 
     # 重新排序
-    def __resort (self):
-        self.__rows.sort(key = lambda row: row[0].lower())
-        self.__index.sort(key = lambda row: (row[COLUMN_SW], row[0].lower()))
+    def __resort(self):
+        self.__rows.sort(key=lambda row: row[0].lower())
+        self.__index.sort(key=lambda row: (row[COLUMN_SW], row[0].lower()))
         for index in xrange(len(self.__rows)):
             row = self.__rows[index]
             row[COLUMN_ID] = index
@@ -875,7 +875,7 @@ class DictCsv (object):
         self.__dirty = False
 
     # 查询单词
-    def query (self, key):
+    def query(self, key):
         if key is None:
             return None
         if self.__dirty:
@@ -888,7 +888,7 @@ class DictCsv (object):
         return self.__obj_decode(row)
 
     # 查询单词匹配
-    def match (self, word, count = 10, strip = False):
+    def match (self, word, count=10, strip=False):
         if len(self.__rows) == 0:
             return []
         if self.__dirty:
@@ -921,38 +921,38 @@ class DictCsv (object):
             if middle >= len(index):
                 break
         cc = COLUMN_ID
-        likely = [ (tx[cc], tx[0]) for tx in index[middle:middle + count] ]
+        likely = [(tx[cc], tx[0]) for tx in index[middle:middle + count]]
         return likely
 
     # 批量查询
-    def query_batch (self, keys):
-        return [ self.query(key) for key in keys ]
+    def query_batch(self, keys):
+        return [self.query(key) for key in keys]
 
     # 单词总量
-    def count (self):
+    def count(self):
         return len(self.__rows)
 
     # 取得长度
-    def __len__ (self):
+    def __len__(self):
         return len(self.__rows)
 
     # 取得单词
-    def __getitem__ (self, key):
+    def __getitem__(self, key):
         return self.query(key)
 
     # 是否存在
-    def __contains__ (self, key):
+    def __contains__(self, key):
         return self.__words.__contains__(key.lower())
 
     # 迭代器
-    def __iter__ (self):
+    def __iter__(self):
         record = []
         for index in xrange(len(self.__rows)):
             record.append((index, self.__rows[index][0]))
         return record.__iter__()
 
     # 注册新单词
-    def register (self, word, items, commit = True):
+    def register(self, word, items, commit=True):
         if word.lower() in self.__words:
             return False
         row = self.__obj_encode(items)
@@ -967,7 +967,7 @@ class DictCsv (object):
         return True
 
     # 删除单词
-    def remove (self, key, commit = True):
+    def remove(self, key, commit=True):
         if isinstance(key, int) or isinstance(key, long):
             if key < 0 or key >= len(self.__rows):
                 return False
@@ -991,12 +991,12 @@ class DictCsv (object):
         return True
 
     # 清空所有
-    def delete_all (self, reset_id = False):
+    def delete_all(self, reset_id=False):
         self.reset()
         return True
 
     # 更改单词
-    def update (self, key, items, commit = True):
+    def update(self, key, items, commit=True):
         if isinstance(key, int) or isinstance(key, long):
             if key < 0 or key >= len(self.__rows):
                 return False
@@ -1016,31 +1016,31 @@ class DictCsv (object):
         return True
 
     # 提交变更
-    def commit (self):
+    def commit(self):
         if self.__csvname:
             self.save(self.__csvname, self.__codec)
         return True
 
     # 取得所有单词
-    def dumps (self):
-        return [ n for _, n in self.__iter__() ]
+    def dumps(self):
+        return [n for _, n in self.__iter__()]
 
 
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # 词形衍生：查找动词的各种时态，名词的复数等，或反向查找
 # 格式为每行一条数据：根词汇 -> 衍生1,衍生2,衍生3
 # 可以用 Hunspell数据生成，下面有个日本人做的简版（1.8万组数据）：
 # http://www.lexically.net/downloads/version4/downloading%20BNC.htm
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 class LemmaDB (object):
 
-    def __init__ (self):
+    def __init__(self):
         self._stems = {}
         self._words = {}
         self._frqs = {}
 
     # 读取数据
-    def load (self, filename, encoding = None):
+    def load(self, filename, encoding=None):
         content = open(filename, 'rb').read()
         if content[:3] == b'\xef\xbb\xbf':
             content = content[3:].decode('utf-8', 'ignore')
@@ -1086,9 +1086,9 @@ class LemmaDB (object):
         return True
 
     # 保存数据文件
-    def save (self, filename, encoding = 'utf-8'):
+    def save(self, filename, encoding='utf-8'):
         stems = list(self._stems.keys())
-        stems.sort(key = lambda x: x.lower())
+        stems.sort(key=lambda x: x.lower())
         import codecs
         fp = codecs.open(filename, 'w', encoding)
         output = []
@@ -1098,8 +1098,8 @@ class LemmaDB (object):
                 continue
             frq = self._frqs.get(stem, 0)
             if frq > 0:
-                stem = '%s/%d'%(stem, frq)
-            output.append((-frq, u'%s -> %s'%(stem, ','.join(words))))
+                stem = '%s/%d' % (stem, frq)
+            output.append((-frq, u'%s -> %s' % (stem, ','.join(words))))
         output.sort()
         for _, text in output:
             fp.write(text + '\n')
@@ -1107,11 +1107,11 @@ class LemmaDB (object):
         return True
 
     # 添加一个词根的一个衍生词
-    def add (self, stem, word):
+    def add(self, stem, word):
         if stem not in self._stems:
             self._stems[stem] = {}
         if word not in self._stems[stem]:
-            self._stems[stem][word] = len(self._stems[stem]) 
+            self._stems[stem][word] = len(self._stems[stem])
         if word not in self._words:
             self._words[word] = {}
         if stem not in self._words[word]:
@@ -1119,7 +1119,7 @@ class LemmaDB (object):
         return True
 
     # 删除一个词根的一个衍生词
-    def remove (self, stem, word):
+    def remove(self, stem, word):
         count = 0
         if stem in self._stems:
             if word in self._stems[stem]:
@@ -1136,41 +1136,41 @@ class LemmaDB (object):
         return (count > 0) and True or False
 
     # 清空数据库
-    def reset (self):
+    def reset(self):
         self._stems = {}
         self._words = {}
         return True
 
     # 根据词根找衍生，或者根据衍生反向找词根
-    def get (self, word, reverse = False):
+    def get(self, word, reverse=False):
         if not reverse:
             if word not in self._stems:
                 if word in self._words:
                     return [word]
                 return None
-            words = [ (v, k) for (k, v) in self._stems[word].items() ]
+            words = [(v, k) for (k, v) in self._stems[word].items()]
         else:
             if word not in self._words:
                 if word in self._stems:
                     return [word]
                 return None
-            words = [ (v, k) for (k, v) in self._words[word].items() ]
+            words = [(v, k) for (k, v) in self._words[word].items()]
         words.sort()
-        return [ k for (v, k) in words ]
+        return [k for (v, k) in words]
 
     # 知道一个单词求它的词根
-    def word_stem (self, word):
-        return self.get(word, reverse = True)
+    def word_stem(self, word):
+        return self.get(word, reverse=True)
 
     # 总共多少条词根数据
-    def stem_size (self):
+    def stem_size(self):
         return len(self._stems)
 
     # 总共多少条衍生数据
-    def word_size (self):
+    def word_size(self):
         return len(self._words)
 
-    def dump (self, what = 'ALL'):
+    def dump(self, what='ALL'):
         words = {}
         what = what.lower()
         if what in ('all', 'stem'):
@@ -1181,26 +1181,25 @@ class LemmaDB (object):
                 words[word] = 1
         return words
 
-    def __len__ (self):
+    def __len__(self):
         return len(self._stems)
 
-    def __getitem__ (self, stem):
+    def __getitem__(self, stem):
         return self.get(stem)
 
-    def __contains__ (self, stem):
+    def __contains__(self, stem):
         return (stem in self._stems)
 
-    def __iter__ (self):
+    def __iter__(self):
         return self._stems.__iter__()
 
 
-
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # DictHelper
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 class DictHelper (object):
 
-    def __init__ (self):
+    def __init__(self):
         self._exchanges = {}
         self._exchanges['p'] = u'过去式'
         self._exchanges['d'] = u'过去分词'
@@ -1227,37 +1226,40 @@ class DictHelper (object):
         self._pos['x'] = (u'否定标记', 'not')
 
     # 返回一个进度指示条，传入总量，每走一格调用一次 next
-    def progress (self, total):
+    def progress(self, total):
         class ProgressIndicator (object):
-            def __init__ (self, total):
+            def __init__(self, total):
                 self.count = 0
                 self.percent = -1
                 self.total = total
                 self.timestamp = time.time()
                 self.counter = {}
-            def next (self):
+
+            def next(self):
                 if self.total:
                     self.count += 1
                     pc = int(self.count * 100 / self.total)
                     if pc != self.percent:
                         self.percent = pc
-                        print('progress: %d%%'%pc)
-            def inc (self, name):
+                        print('progress: %d%%' % pc)
+
+            def inc(self, name):
                 if name not in self.counter:
                     self.counter[name] = 1
                 else:
                     self.counter[name] += 1
-            def done (self):
+
+            def done(self):
                 t = (time.time() - self.timestamp)
                 keys = list(self.counter.keys())
                 keys.sort()
                 for key in keys:
-                    print('[%s] -> %d'%(key, self.counter[key]))
-                print('[Finished in %d seconds (%d)]'%(t, self.count))
+                    print('[%s] -> %d' % (key, self.counter[key]))
+                print('[Finished in %d seconds (%d)]' % (t, self.count))
         return ProgressIndicator(total)
 
     # 返回词典里所有词的 map，默认转为小写
-    def dump_map (self, dictionary, lower = True):
+    def dump_map(self, dictionary, lower=True):
         words = {}
         for _, word in dictionary:
             if lower:
@@ -1266,7 +1268,7 @@ class DictHelper (object):
         return words
 
     # 字典差异导出
-    def discrepancy_export (self, dictionary, words, outname, opts = ''):
+    def discrepancy_export(self, dictionary, words, outname, opts=''):
         existence = self.dump_map(dictionary)
         if os.path.splitext(outname)[-1].lower() in ('.txt', '.csv'):
             db = DictCsv(outname)
@@ -1298,14 +1300,14 @@ class DictHelper (object):
                 word.encode('ascii')
             except:
                 continue
-            db.register(word, {'tag':'PENDING'}, False)
+            db.register(word, {'tag': 'PENDING'}, False)
             count += 1
         db.commit()
-        print('exported %d entries'%count)
+        print('exported %d entries' % count)
         return count
 
     # 字典差异导入
-    def discrepancy_import (self, dictionary, filename, opts = ''):
+    def discrepancy_import(self, dictionary, filename, opts=''):
         existence = self.dump_map(dictionary)
         if os.path.splitext(filename)[-1].lower() in ('.csv', '.txt'):
             db = DictCsv(filename)
@@ -1337,14 +1339,14 @@ class DictHelper (object):
                 dictionary.register(word, update, False)
             count += 1
         dictionary.commit()
-        print('imported %d entries'%count)
+        print('imported %d entries' % count)
         return count
 
-    # 差异比较（utf-8 的.txt 文件，单词和后面音标释义用tab分割） 
-    def deficit_tab_txt (self, dictionary, txt, outname, opts = ''):
+    # 差异比较（utf-8 的.txt 文件，单词和后面音标释义用tab分割）
+    def deficit_tab_txt(self, dictionary, txt, outname, opts=''):
         deficit = {}
-        for line in codecs.open(txt, encoding = 'utf-8'):
-            row = [ n.strip() for n in line.split('\t') ]
+        for line in codecs.open(txt, encoding='utf-8'):
+            row = [n.strip() for n in line.split('\t')]
             if len(row) < 2:
                 continue
             word = row[0]
@@ -1352,10 +1354,10 @@ class DictHelper (object):
         return self.deficit_export(dictionary, deficit, outname, opts)
 
     # 导出星际译王的词典文件，根据一个单词到释义的字典
-    def export_stardict (self, wordmap, outname, title):
+    def export_stardict(self, wordmap, outname, title):
         mainname = os.path.splitext(outname)[0]
-        keys = [ k for k in wordmap ]
-        keys.sort(key = lambda x: (x.lower(), x))
+        keys = [k for k in wordmap]
+        keys.sort(key=lambda x: (x.lower(), x))
         import struct
         pc = self.progress(len(wordmap))
         position = 0
@@ -1369,25 +1371,26 @@ class DictHelper (object):
                     f2.write(text)
                     position += len(text)
             with open(mainname + '.ifo', 'wb') as f3:
-                f3.write("StarDict's dict ifo file\nversion=2.4.2\n")
-                f3.write('wordcount=%d\n'%len(wordmap))
-                f3.write('idxfilesize=%d\n'%f1.tell())
-                f3.write('bookname=%s\n'%title.encode('utf-8', 'ignore'))
-                f3.write('author=\ndescription=\n')
+                f3.write(b"StarDict's dict ifo file\nversion=2.4.2\n")
+                f3.write(('wordcount=%d\n' % len(wordmap)).encode('utf-8'))
+                f3.write(('idxfilesize=%d\n' % f1.tell()).encode('utf-8'))
+                f3.write(('bookname=%s\n' % title).encode('utf-8'))
+                f3.write(b'author=\ndescription=\n')
                 import datetime
                 ts = datetime.datetime.now().strftime('%Y.%m.%d')
-                f3.write('date=%s\nsametypesequence=m\n'%ts)
+                f3.write(('date=%s\nsametypesequence=m\n' %
+                         ts).encode('utf-8'))
         pc.done()
         return True
 
     # 导出 mdict 的源文件
-    def export_mdict (self, wordmap, outname):
-        keys = [ k for k in wordmap ]
-        keys.sort(key = lambda x: x.lower())
+    def export_mdict(self, wordmap, outname):
+        keys = [k for k in wordmap]
+        keys.sort(key=lambda x: x.lower())
         size = len(keys)
         index = 0
         pc = self.progress(size)
-        with codecs.open(outname, 'w', encoding = 'utf-8') as fp:
+        with codecs.open(outname, 'w', encoding='utf-8') as fp:
             for key in keys:
                 pc.next()
                 word = key.replace('</>', '').replace('\n', ' ')
@@ -1407,11 +1410,11 @@ class DictHelper (object):
         return True
 
     # 导入mdx源文件
-    def import_mdict (self, filename, encoding = 'utf-8'):
+    def import_mdict(self, filename, encoding='utf-8'):
         import codecs
         words = {}
-        with codecs.open(filename, 'r', encoding = encoding) as fp:
-            text = []   
+        with codecs.open(filename, 'r', encoding=encoding) as fp:
+            text = []
             word = None
             for line in fp:
                 line = line.rstrip('\r\n')
@@ -1430,7 +1433,7 @@ class DictHelper (object):
 
     # 直接生成 .mdx文件，需要 writemdict 支持：
     # https://github.com/skywind3000/writemdict
-    def export_mdx (self, wordmap, outname, title, desc = None):
+    def export_mdx(self, wordmap, outname, title, desc=None):
         try:
             import writemdict
         except ImportError:
@@ -1439,15 +1442,15 @@ class DictHelper (object):
             sys.exit(1)
         if desc is None:
             desc = u'Create by stardict.py'
-        writer = writemdict.MDictWriter(wordmap, title = title, 
-                description = desc)
+        writer = writemdict.MDictWriter(wordmap, title=title,
+                                        description=desc)
         with open(outname, 'wb') as fp:
             writer.write(fp)
         return True
 
     # 读取 .mdx 文件，需要 readmdict 支持：
     # https://github.com/skywind3000/writemdict (包含readmdict）
-    def read_mdx (self, mdxname, mdd = False):
+    def read_mdx(self, mdxname, mdd=False):
         try:
             import readmdict
         except ImportError:
@@ -1468,7 +1471,7 @@ class DictHelper (object):
         return words
 
     # 导出词形变换字符串
-    def exchange_dumps (self, obj):
+    def exchange_dumps(self, obj):
         part = []
         if not obj:
             return None
@@ -1479,7 +1482,7 @@ class DictHelper (object):
         return '/'.join(part)
 
     # 读取词形变换字符串
-    def exchange_loads (self, exchg):
+    def exchange_loads(self, exchg):
         if not exchg:
             return None
         obj = {}
@@ -1492,14 +1495,14 @@ class DictHelper (object):
             obj[k] = v
         return obj
 
-    def pos_loads (self, pos):
+    def pos_loads(self, pos):
         return self.exchange_loads(pos)
 
-    def pos_dumps (self, obj):
+    def pos_dumps(self, obj):
         return self.exchange_dumps(obj)
 
     # 返回词性
-    def pos_detect (self, word, pos):
+    def pos_detect(self, word, pos):
         word = word.lower()
         if pos == 'a':
             if word in ('a', 'the',):
@@ -1512,7 +1515,7 @@ class DictHelper (object):
         return (u'未知', 'unknow')
 
     # 返回词形比例
-    def pos_extract (self, data):
+    def pos_extract(self, data):
         if 'pos' not in data:
             return None
         position = data['pos']
@@ -1522,7 +1525,7 @@ class DictHelper (object):
         result = []
         for x in part:
             result.append((x, part[x]))
-        result.sort(reverse = True, key = lambda t: int(t[1]))
+        result.sort(reverse=True, key=lambda t: int(t[1]))
         final = []
         for pos, num in result:
             mode = self.pos_detect(data['word'], pos)
@@ -1530,7 +1533,7 @@ class DictHelper (object):
         return final
 
     # 设置详细内容，None代表删除
-    def set_detail (self, dictionary, word, item, value, create = False):
+    def set_detail(self, dictionary, word, item, value, create=False):
         data = dictionary.query(word)
         if data is None:
             if not create:
@@ -1550,7 +1553,7 @@ class DictHelper (object):
         return True
 
     # 取得详细内容
-    def get_detail (self, dictionary, word, item):
+    def get_detail(self, dictionary, word, item):
         data = dictionary.query(word)
         if not data:
             return None
@@ -1560,7 +1563,7 @@ class DictHelper (object):
         return detail.get(item, None)
 
     # load file and guess encoding
-    def load_text (self, filename, encoding = None):
+    def load_text(self, filename, encoding=None):
         content = None
         try:
             content = open(filename, 'rb').read()
@@ -1586,7 +1589,7 @@ class DictHelper (object):
         return text
 
     # csv 读取，自动检测编码
-    def csv_load (self, filename, encoding = None):
+    def csv_load(self, filename, encoding=None):
         text = self.load_text(filename, encoding)
         if not text:
             return None
@@ -1601,14 +1604,14 @@ class DictHelper (object):
         output = []
         if sys.version_info[0] < 3:
             for row in reader:
-                output.append([ n.decode('utf-8', 'ignore') for n in row ])
+                output.append([n.decode('utf-8', 'ignore') for n in row])
         else:
             for row in reader:
                 output.append(row)
         return output
 
     # csv保存，可以指定编码
-    def csv_save (self, filename, rows, encoding = 'utf-8'):
+    def csv_save(self, filename, rows, encoding='utf-8'):
         import csv
         ispy2 = (sys.version_info[0] < 3)
         if not encoding:
@@ -1617,7 +1620,7 @@ class DictHelper (object):
             fp = open(filename, 'wb')
             writer = csv.writer(fp)
         else:
-            fp = open(filename, 'w', encoding = encoding, newline = '')
+            fp = open(filename, 'w', encoding=encoding, newline='')
             writer = csv.writer(fp)
         for row in rows:
             newrow = []
@@ -1635,7 +1638,7 @@ class DictHelper (object):
         return True
 
     # 加载 tab 分割的 txt 文件, 返回 key, value
-    def tab_txt_load (self, filename, encoding = None):
+    def tab_txt_load(self, filename, encoding=None):
         words = {}
         content = self.load_text(filename, encoding)
         if content is None:
@@ -1654,17 +1657,17 @@ class DictHelper (object):
         return words
 
     # 保存 tab 分割的 txt文件
-    def tab_txt_save (self, filename, words, encoding = 'utf-8'):
-        with codecs.open(filename, 'w', encoding = encoding) as fp:
+    def tab_txt_save(self, filename, words, encoding='utf-8'):
+        with codecs.open(filename, 'w', encoding=encoding) as fp:
             for word in words:
                 text = words[word]
                 text = text.replace('\\', '\\\\').replace('\n', '\\n')
                 text = text.replace('\r', '\\r').replace('\t', '\\t')
-                fp.write('%s\t%s\r\n'%(word, text))
+                fp.write('%s\t%s\r\n' % (word, text))
         return True
 
     # Tab 分割的 txt文件释义导入
-    def tab_txt_import (self, dictionary, filename):
+    def tab_txt_import(self, dictionary, filename):
         words = self.tab_txt_load(filename)
         if not words:
             return False
@@ -1672,9 +1675,9 @@ class DictHelper (object):
         for word in words:
             data = dictionary.query(word)
             if not data:
-                dictionary.register(word, {'translation':words[word]}, False)
+                dictionary.register(word, {'translation': words[word]}, False)
             else:
-                dictionary.update(word, {'translation':words[word]}, False)
+                dictionary.update(word, {'translation': words[word]}, False)
             pc.inc(0)
             pc.next()
         dictionary.commit()
@@ -1682,21 +1685,21 @@ class DictHelper (object):
         return True
 
     # mdx-builder 使用writemdict代替MdxBuilder处理较大词典（需64为python）
-    def mdx_build (self, srcname, outname, title, desc = None):
-        print('loading %s'%srcname)
+    def mdx_build(self, srcname, outname, title, desc=None):
+        print('loading %s' % srcname)
         t = time.time()
         words = self.import_mdict(srcname)
         t = time.time() - t
-        print(u'%d records loaded in %.3f seconds'%(len(words), t))
-        print(u'building %s'%outname)
+        print(u'%d records loaded in %.3f seconds' % (len(words), t))
+        print(u'building %s' % outname)
         t = time.time()
         self.export_mdx(words, outname, title, desc)
         t = time.time() - t
-        print(u'complete in %.3f seconds'%t)
+        print(u'complete in %.3f seconds' % t)
         return True
 
     # 验证单词合法性
-    def validate_word (self, word, asc128):
+    def validate_word(self, word, asc128):
         alpha = 0
         for ch in word:
             if ch.isalpha():
@@ -1749,12 +1752,14 @@ class DictHelper (object):
         return True
 
 
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # Helper instance
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 tools = DictHelper()
 
 # 根据文件名自动判断数据库类型并打开
+
+
 def open_dict(filename):
     if isinstance(filename, dict):
         return DictMySQL(filename)
@@ -1800,29 +1805,29 @@ def open_local(filename):
     for dir in [base, base + '/share', base + '/share/stardict']:
         if not os.path.exists(dir):
             os.mkdir(dir)
-    fn = os.path.join(base + '/share/stardict', filename)   
+    fn = os.path.join(base + '/share/stardict', filename)
     return open_dict(fn)
 
 
-
-
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # testing
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 if __name__ == '__main__':
     db = os.path.join(os.path.dirname(__file__), 'test.db')
-    my = {'host':'??', 'user':'skywind', 'passwd':'??', 'db':'skywind_t1'}
+    my = {'host': '??', 'user': 'skywind', 'passwd': '??', 'db': 'skywind_t1'}
+
     def test1():
         t = time.time()
         sd = StarDict(db, False)
         print(time.time() - t)
         # sd.delete_all(True)
-        print(sd.register('kiss2', {'definition':'kiss me'}, False))
-        print(sd.register('kiss here', {'definition':'kiss me'}, False))
-        print(sd.register('Kiss', {'definition':'BIG KISS'}, False))
-        print(sd.register('kiss', {'definition':'kiss me'}, False))
-        print(sd.register('suck', {'definition':'suck me'}, False))
-        print(sd.register('give', {'definition':'give me', 'detail':[1,2,3]}, False))
+        print(sd.register('kiss2', {'definition': 'kiss me'}, False))
+        print(sd.register('kiss here', {'definition': 'kiss me'}, False))
+        print(sd.register('Kiss', {'definition': 'BIG KISS'}, False))
+        print(sd.register('kiss', {'definition': 'kiss me'}, False))
+        print(sd.register('suck', {'definition': 'suck me'}, False))
+        print(sd.register(
+            'give', {'definition': 'give me', 'detail': [1, 2, 3]}, False))
         sd.commit()
         print('')
         print(sd.count())
@@ -1833,35 +1838,37 @@ if __name__ == '__main__':
         print(sd.query_batch(['give', 2]))
         print(sd.match('kisshere', 10, True))
         return 0
+
     def test2():
         t = time.time()
-        dm = DictMySQL(my, init = True)
+        dm = DictMySQL(my, init=True)
         print(time.time() - t)
         # dm.delete_all(True)
-        print(dm.register('kiss2', {'definition':'kiss me'}, False))
-        print(dm.register('kiss here', {'definition':'kiss me'}, False))
-        print(dm.register('Kiss', {'definition':'kiss me'}, False))
-        print(dm.register('kiss', {'definition':'BIG KISS'}, False))
-        print(dm.register('suck', {'definition':'suck me'}, False))
-        print(dm.register('give', {'definition':'give me'}, False))
+        print(dm.register('kiss2', {'definition': 'kiss me'}, False))
+        print(dm.register('kiss here', {'definition': 'kiss me'}, False))
+        print(dm.register('Kiss', {'definition': 'kiss me'}, False))
+        print(dm.register('kiss', {'definition': 'BIG KISS'}, False))
+        print(dm.register('suck', {'definition': 'suck me'}, False))
+        print(dm.register('give', {'definition': 'give me'}, False))
         print(dm.query('kiss'))
         print(dm.match('kis'))
         print('')
         print(dm.query('KiSs'))
         print(dm.query_batch(['give', 2, 9]))
-        print('count: %d'%len(dm))
+        print('count: %d' % len(dm))
         print(dm.match('kisshere', 10, True))
         return 0
+
     def test3():
         csvname = os.path.join(os.path.dirname(__file__), 'test.csv')
         dc = DictCsv(csvname)
         dc.delete_all()
-        print(dc.register('kiss2', {'definition':'kiss me'}, False))
-        print(dc.register('kiss here', {'definition':'kiss me'}, False))
-        print(dc.register('Kiss', {'definition':'kiss me'}, False))
-        print(dc.register('kiss', {'definition':'kiss me'}, False))
-        print(dc.register('suck', {'definition':'suck me'}, False))
-        print(dc.register('word', {'definition':'WORD WORD'}, False))
+        print(dc.register('kiss2', {'definition': 'kiss me'}, False))
+        print(dc.register('kiss here', {'definition': 'kiss me'}, False))
+        print(dc.register('Kiss', {'definition': 'kiss me'}, False))
+        print(dc.register('kiss', {'definition': 'kiss me'}, False))
+        print(dc.register('suck', {'definition': 'suck me'}, False))
+        print(dc.register('word', {'definition': 'WORD WORD'}, False))
         print(dc.query('kiss'))
         print('')
         dc.remove('kiss2')
@@ -1869,21 +1876,20 @@ if __name__ == '__main__':
         print(dc.match('kisshere', 10, True))
         dc.commit()
         return 0
+
     def test4():
         lemma = LemmaDB()
         t = time.time()
         lemma.load('lemma.en.txt')
-        print('load in %s seconds'%str(time.time() - t))
+        print('load in %s seconds' % str(time.time() - t))
         print(len(lemma))
         for word in ('be', 'give', 'see', 'take'):
-            print('%s -> %s'%(word, ','.join(lemma.get(word))))
+            print('%s -> %s' % (word, ','.join(lemma.get(word))))
         for word in ('gave', 'taken', 'looked', 'teeth', 'speak'):
-            print('%s <- %s'%(word, ','.join(lemma.word_stem(word))))
+            print('%s <- %s' % (word, ','.join(lemma.word_stem(word))))
         lemma.save('output.txt')
         return 0
+
     def test5():
         print(tools.validate_word('Hello World', False))
     test3()
-
-
-
